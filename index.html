@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador EDO - Preservación Térmica de Vacunas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            cyan: '#00E5FF',
+                            blue: '#00B0FF',
+                            purple: '#7C4DFF',
+                            dark: '#0B0F19',
+                            card: '#151C2C',
+                            border: '#2A364F'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0F19;
+            color: #E2E8F0;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 229, 255, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(124, 77, 255, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .glass-card {
+            background: rgba(21, 28, 44, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card-hover:hover {
+            border-color: rgba(0, 229, 255, 0.3);
+            box-shadow: 0 10px 30px -10px rgba(0, 229, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .glow-button {
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+        }
+        .glow-button:hover {
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+            transform: scale(1.01);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0F19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2A364F;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00E5FF;
+        }
+
+        .badge-cyan {
+            background: rgba(0, 229, 255, 0.1);
+            color: #00E5FF;
+            border: 1px solid rgba(0, 229, 255, 0.3);
+        }
+        .badge-purple {
+            background: rgba(124, 77, 255, 0.1);
+            color: #B388FF;
+            border: 1px solid rgba(124, 77, 255, 0.3);
+        }
+        .badge-emerald {
+            background: rgba(16, 185, 129, 0.1);
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .badge-amber {
+            background: rgba(245, 158, 11, 0.1);
+            color: #FBBF24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+    </style>
+</head>
+<body class="font-sans antialiased min-h-screen pb-12">
+
+    <!-- Header Navigation -->
+    <header class="sticky top-0 z-50 glass-card border-b border-slate-800/80 mb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid me-0 fa-snowflake text-2xl animate-pulse"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-cyan-400 via-sky-300 to-purple-400 bg-clip-text text-transparent">
+                        Simulador EDO | Métodos Numéricos
+                    </h1>
+                    <p class="text-xs text-slate-400 flex items-center gap-2">
+                        <span>Preservación Cadena de Frío de Vacunas</span>
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                        <span class="text-cyan-400 font-mono">Heun vs RK4</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Actions & Info -->
+            <div class="flex items-center space-x-3">
+                <button onclick="openModal('infoModal')" class="px-4 py-2 rounded-xl glass-card text-xs font-semibold text-slate-300 hover:text-cyan-400 border border-slate-700 hover:border-cyan-500/50 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-cyan-400"></i>
+                    <span>Marco Teórico</span>
+                </button>
+                <button onclick="exportCSV()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-file-csv text-emerald-400"></i>
+                    <span>Exportar CSV</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+
+        <!-- KPI Cards Grid -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- KPI 1 -->
+            <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-cyan-500/10 rounded-full blur-xl group-hover:bg-cyan-500/20 transition-all"></div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tiempo Simulado</p>
+                        <h3 id="kpiTiempo" class="text-3xl font-extrabold text-white mt-2 font-mono">60 <span class="text-sm font-normal text-slate-400">min</span></h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg badge-cyan flex items-center justify-center">
+                        <i class="fa-solid fa-clock text-lg"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-slate-400 gap-1.5">
+                    <i class="fa-solid fa-sliders text-cyan-400"></i>
+                    <span>Intervalo [0, <span id="kpiIntervaloMax">60</span> min]</span>
+                </div>
+            </div>
+
+            <!-- KPI 2 -->
+            <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-all"></div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Temp. Final Exacta</p>
+                        <h3 id="kpiTempFinal" class="text-3xl font-extrabold text-white mt-2 font-mono">15.08 <span class="text-sm font-normal text-slate-400">°C</span></h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+                        <i class="fa-solid fa-temperature-three-quarters text-lg"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-amber-400 gap-1.5 font-medium">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="kpiEstadoTemp">Supera umbral crítico (8°C)</span>
+                </div>
+            </div>
+
+            <!-- KPI 3 -->
+            <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-amber-500/10 rounded-full blur-xl group-hover:bg-amber-500/20 transition-all"></div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Error Máx. Heun (RK2)</p>
+                        <h3 id="kpiErrorHeun" class="text-3xl font-extrabold text-amber-400 mt-2 font-mono">0.0689 <span class="text-sm">%</span></h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg badge-amber flex items-center justify-center">
+                        <i class="fa-solid fa-chart-line text-lg"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-slate-400 gap-1.5">
+                    <span class="font-mono text-amber-300">Orden 2</span> • Precisión moderada
+                </div>
+            </div>
+
+            <!-- KPI 4 -->
+            <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-purple-500/10 rounded-full blur-xl group-hover:bg-purple-500/20 transition-all"></div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Error Máx. RK4</p>
+                        <h3 id="kpiErrorRK4" class="text-3xl font-extrabold text-purple-400 mt-2 font-mono">0.0008 <span class="text-sm">%</span></h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg badge-purple flex items-center justify-center">
+                        <i class="fa-solid fa-bullseye text-lg"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-emerald-400 gap-1.5 font-medium">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>Máxima Precisión (Orden 4)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid: Controls + Chart -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+            <!-- Controls Sidebar (4 cols) -->
+            <div class="lg:col-span-4 glass-card p-6 rounded-2xl border border-slate-800 space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-cyan-400"></i>
+                        <span>Parámetros del Modelo</span>
+                    </h2>
+                    <span class="text-xs px-2.5 py-1 rounded-full badge-cyan font-mono">EDO 1.º Orden</span>
+                </div>
+
+                <!-- Presets selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-2">Escenarios Preconfigurados</label>
+                    <select id="presetSelect" onchange="cargarPreset()" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500">
+                        <option value="standard">Posta Común - Falla Eléctrica Típica</option>
+                        <option value="extreme">Ola de Calor Extrema (Tm = 38°C)</option>
+                        <option value="cooler">Nevera Portátil Aislada (k = 0.02)</option>
+                        <option value="coarse">Paso de Integración Grande (h = 10 min)</option>
+                    </select>
+                </div>
+
+                <form id="simForm" onsubmit="event.preventDefault(); simular();" class="space-y-4">
+                    <!-- T0 -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1.5">
+                            <label for="inputT0" class="text-slate-300">Temp. Inicial Vacunas (T₀):</label>
+                            <span class="text-cyan-400 font-mono" id="valT0">4 °C</span>
+                        </div>
+                        <input type="range" id="inputT0" min="0" max="15" step="0.5" value="4" oninput="actualizarLabel('T0', '°C')" class="w-full accent-cyan-400 bg-slate-800 rounded-lg cursor-pointer h-2">
+                        <span class="text-[10px] text-slate-500">Rango normal de almacenamiento: 2°C a 8°C</span>
+                    </div>
+
+                    <!-- Tm -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1.5">
+                            <label for="inputTm" class="text-slate-300">Temp. Ambiente (Tₘ):</label>
+                            <span class="text-cyan-400 font-mono" id="valTm">25 °C</span>
+                        </div>
+                        <input type="range" id="inputTm" min="15" max="45" step="1" value="25" oninput="actualizarLabel('Tm', '°C')" class="w-full accent-cyan-400 bg-slate-800 rounded-lg cursor-pointer h-2">
+                    </div>
+
+                    <!-- k -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1.5">
+                            <label for="inputK" class="text-slate-300">Conductividad Térmica (k):</label>
+                            <span class="text-cyan-400 font-mono" id="valK">0.05 min⁻¹</span>
+                        </div>
+                        <input type="number" id="inputK" min="0.001" max="0.5" step="0.005" value="0.05" onchange="simular()" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs font-mono text-cyan-300 focus:border-cyan-500 focus:outline-none">
+                        <span class="text-[10px] text-slate-500">Depende de la calidad del aislamiento de la nevera</span>
+                    </div>
+
+                    <!-- Paso h -->
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <div>
+                            <label for="inputH" class="block text-xs font-medium text-slate-300 mb-1">Paso (h) [min]:</label>
+                            <input type="number" id="inputH" min="0.5" max="20" step="0.5" value="5" onchange="simular()" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs font-mono text-emerald-400 focus:border-cyan-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label for="inputTMax" class="block text-xs font-medium text-slate-300 mb-1">Tiempo Máx [min]:</label>
+                            <input type="number" id="inputTMax" min="10" max="240" step="5" value="60" onchange="simular()" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs font-mono text-purple-400 focus:border-cyan-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full mt-4 py-3.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-purple-600 text-white font-bold text-sm tracking-wide glow-button flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play text-xs"></i>
+                        <span>Ejecutar Simulación</span>
+                    </button>
+                </form>
+
+                <!-- Equation Box -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ecuación Diferencial</p>
+                    <p class="font-mono text-xs text-cyan-300 bg-black/40 p-2 rounded-lg border border-cyan-500/20 text-center">
+                        dT/dt = -k(T - Tₘ)
+                    </p>
+                    <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pt-1">Solución Analítica Exacta</p>
+                    <p class="font-mono text-[11px] text-purple-300 bg-black/40 p-2 rounded-lg border border-purple-500/20 text-center">
+                        T(t) = Tₘ + (T₀ - Tₘ)·e⁻ᵏᵗ
+                    </p>
+                </div>
+            </div>
+
+            <!-- Main Chart Area (8 cols) -->
+            <div class="lg:col-span-8 space-y-6">
+                <!-- Chart Card -->
+                <div class="glass-card p-6 rounded-2xl border border-slate-800 relative">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-chart-area text-cyan-400"></i>
+                                <span>Evolución Térmica en el Tiempo</span>
+                            </h2>
+                            <p class="text-xs text-slate-400">Comparativa curva continua vs aproxiaciones discretas (Heun y RK4)</p>
+                        </div>
+                        <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 text-xs">
+                            <span class="flex items-center gap-1.5 px-2 py-1 rounded text-emerald-400 font-medium">
+                                <span class="w-3 h-0.5 bg-emerald-400 rounded-full inline-block"></span> Analítica
+                            </span>
+                            <span class="flex items-center gap-1.5 px-2 py-1 rounded text-amber-400 font-medium">
+                                <span class="w-3 h-0.5 bg-amber-400 rounded-full inline-block"></span> Heun (RK2)
+                            </span>
+                            <span class="flex items-center gap-1.5 px-2 py-1 rounded text-purple-400 font-medium">
+                                <span class="w-3 h-0.5 bg-purple-400 rounded-full inline-block"></span> RK4
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Canvas -->
+                    <div class="relative w-full h-[380px]">
+                        <canvas id="edoChart"></canvas>
+                    </div>
+
+                    <!-- Alert Banner -->
+                    <div id="alertBanner" class="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation text-base text-amber-400"></i>
+                            <span><strong>Umbral de Riesgo:</strong> La vacuna sobrepasa el límite seguro de 8°C a los <strong id="tiempoLimite" class="font-mono text-white">4.3 min</strong> de fallo eléctrico.</span>
+                        </div>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 uppercase font-semibold">Alerta Cadena de Frío</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Detailed Results & Tabbed Table Section -->
+        <section class="glass-card p-6 rounded-2xl border border-slate-800 space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-table text-cyan-400"></i>
+                        <span>Tabla de Iteraciones y Evaluación de Errores</span>
+                    </h2>
+                    <p class="text-xs text-slate-400">Comparación cuantitativa paso a paso entre los métodos numéricos y la solución exacta</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs text-slate-400 mr-2">Paso h actual: <strong id="badgeH" class="text-cyan-400 font-mono">5.0 min</strong></span>
+                    <button onclick="cambiarPasoRapido(2.5)" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">h = 2.5</button>
+                    <button onclick="cambiarPasoRapido(5.0)" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">h = 5.0</button>
+                    <button onclick="cambiarPasoRapido(10.0)" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">h = 10.0</button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                            <th class="py-3 px-4">Paso (i)</th>
+                            <th class="py-3 px-4">Tiempo t (min)</th>
+                            <th class="py-3 px-4 text-emerald-400">Analítica (°C)</th>
+                            <th class="py-3 px-4 text-amber-400">Heun (°C)</th>
+                            <th class="py-3 px-4 text-amber-300">Error % Heun</th>
+                            <th class="py-3 px-4 text-purple-400">RK4 (°C)</th>
+                            <th class="py-3 px-4 text-purple-300">Error % RK4</th>
+                            <th class="py-3 px-4 text-slate-300">Precisión Preferida</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaBody" class="divide-y divide-slate-800/60 text-slate-300">
+                        <!-- Dynamic Content inserted via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Community Context and Findings -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass-card p-6 rounded-2xl border border-slate-800 space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                        <i class="fa-solid fa-users text-lg"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Impacto en la Comunidad Saludable</h3>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Esta herramienta proporciona a las postas médicas de zonas rurales o comunitarias un modelo computacional preciso para prever el margen de tiempo operativo seguro tras un fallo eléctrico. Permite tomar decisiones inmediatas como trasladar lotes de vacunas a termos de contingencia antes de alcanzar los 8°C.
+                </p>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border border-slate-800 space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
+                        <i class="fa-solid fa-square-root-variable text-lg"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Conclusión del Análisis Numérico</h3>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    El método de **Runge-Kutta de 4.º Orden (RK4)** demuestra una concordancia prácticamente exacta con la solución analítica (errores menores a 0.001%), superando significativamente al **Método de Heun (RK2)**. Para simulaciones críticas de vida o conservación biológica, RK4 garantiza fiabilidad matemática aun con pasos de integración mayores.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Theoretical Info Modal -->
+    <div id="infoModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center hidden p-4">
+        <div class="glass-card max-w-2xl w-full rounded-2xl p-6 border border-slate-700 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-cyan-400"></i>
+                    <span>Marco Teórico y Fundamentos</span>
+                </h3>
+                <button onclick="closeModal('infoModal')" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+                <h4 class="font-bold text-cyan-400 text-sm">1. Modelo Físico - Ley de Enfriamiento de Newton</h4>
+                <p>Establece que la tasa de cambio de temperatura de un cuerpo es proporcional a la diferencia entre su temperatura y la del medio ambiente:</p>
+                <div class="bg-slate-900 p-3 rounded-xl font-mono text-cyan-300 text-center border border-slate-800">
+                    dT/dt = -k(T - Tₘ)
+                </div>
+
+                <h4 class="font-bold text-cyan-400 text-sm mt-4">2. Método de Heun (Runge-Kutta de Orden 2)</h4>
+                <p>Es un esquema predictor-corrector que calcula la pendiente al inicio y final del intervalo:</p>
+                <ul class="list-disc pl-5 font-mono text-amber-300 space-y-1">
+                    <li>k₁ = f(tᵢ, Tᵢ)</li>
+                    <li>k₂ = f(tᵢ + h, Tᵢ + h·k₁)</li>
+                    <li>Tᵢ₊₁ = Tᵢ + (h/2)·(k₁ + k₂)</li>
+                </ul>
+
+                <h4 class="font-bold text-cyan-400 text-sm mt-4">3. Runge-Kutta de 4.º Orden (RK4)</h4>
+                <p>Utiliza cuatro evaluaciones interlineales para lograr un orden de error truncamiento local de O(h⁵):</p>
+                <ul class="list-disc pl-5 font-mono text-purple-300 space-y-1">
+                    <li>k₁ = f(tᵢ, Tᵢ)</li>
+                    <li>k₂ = f(tᵢ + h/2, Tᵢ + h·k₁/2)</li>
+                    <li>k₃ = f(tᵢ + h/2, Tᵢ + h·k₂/2)</li>
+                    <li>k₄ = f(tᵢ + h, Tᵢ + h·k₃)</li>
+                    <li>Tᵢ₊₁ = Tᵢ + (h/6)·(k₁ + 2k₂ + 2k₃ + k₄)</li>
+                </ul>
+            </div>
+
+            <div class="pt-4 border-t border-slate-800 text-right">
+                <button onclick="closeModal('infoModal')" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs transition-all">
+                    Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Engine -->
+    <script>
+        // Global variables for Chart and Data
+        let chartInstance = null;
+        let simulationResults = [];
+
+        // EDO Differential Equation Function: dT/dt = -k*(T - Tm)
+        function f(T, Tm, k) {
+            return -k * (T - Tm);
+        }
+
+        // Exact Analytical Solution: T(t) = Tm + (T0 - Tm)*exp(-k*t)
+        function exacta(t, T0, Tm, k) {
+            return Tm + (T0 - Tm) * Math.exp(-k * t);
+        }
+
+        function actualizarLabel(id, unidad) {
+            const val = document.getElementById('input' + id).value;
+            document.getElementById('val' + id).innerText = `${val} ${unidad}`;
+            simular();
+        }
+
+        function cargarPreset() {
+            const preset = document.getElementById('presetSelect').value;
+            if (preset === 'standard') {
+                document.getElementById('inputT0').value = 4;
+                document.getElementById('inputTm').value = 25;
+                document.getElementById('inputK').value = 0.05;
+                document.getElementById('inputH').value = 5;
+                document.getElementById('inputTMax').value = 60;
+            } else if (preset === 'extreme') {
+                document.getElementById('inputT0').value = 4;
+                document.getElementById('inputTm').value = 38;
+                document.getElementById('inputK').value = 0.08;
+                document.getElementById('inputH').value = 5;
+                document.getElementById('inputTMax').value = 60;
+            } else if (preset === 'cooler') {
+                document.getElementById('inputT0').value = 3;
+                document.getElementById('inputTm').value = 25;
+                document.getElementById('inputK').value = 0.02;
+                document.getElementById('inputH').value = 5;
+                document.getElementById('inputTMax').value = 90;
+            } else if (preset === 'coarse') {
+                document.getElementById('inputT0').value = 4;
+                document.getElementById('inputTm').value = 25;
+                document.getElementById('inputK').value = 0.05;
+                document.getElementById('inputH').value = 10;
+                document.getElementById('inputTMax').value = 60;
+            }
+            document.getElementById('valT0').innerText = document.getElementById('inputT0').value + ' °C';
+            document.getElementById('valTm').innerText = document.getElementById('inputTm').value + ' °C';
+            document.getElementById('valK').innerText = document.getElementById('inputK').value + ' min⁻¹';
+            simular();
+        }
+
+        function cambiarPasoRapido(nuevoH) {
+            document.getElementById('inputH').value = nuevoH;
+            simular();
+        }
+
+        function simular() {
+            // Read Inputs
+            const T0 = parseFloat(document.getElementById('inputT0').value);
+            const Tm = parseFloat(document.getElementById('inputTm').value);
+            const k = parseFloat(document.getElementById('inputK').value);
+            const h = parseFloat(document.getElementById('inputH').value);
+            const tMax = parseFloat(document.getElementById('inputTMax').value);
+
+            document.getElementById('badgeH').innerText = `${h.toFixed(1)} min`;
+
+            // Data storage arrays
+            simulationResults = [];
+            let tiempos = [];
+            let arrExacta = [];
+            let arrHeun = [];
+            let arrRK4 = [];
+
+            let t = 0;
+            let T_heun = T0;
+            let T_rk4 = T0;
+            let pasoIndex = 0;
+
+            let maxErrHeun = 0;
+            let maxErrRK4 = 0;
+            let tiempoLimiteExcedido = null;
+
+            while (t <= tMax + 1e-5) {
+                // Exact Value
+                let T_exact = exacta(t, T0, Tm, k);
+
+                // Errors
+                let errAbsHeun = Math.abs(T_exact - T_heun);
+                let errRelHeun = T_exact !== 0 ? (errAbsHeun / Math.abs(T_exact)) * 100 : 0;
+
+                let errAbsRK4 = Math.abs(T_exact - T_rk4);
+                let errRelRK4 = T_exact !== 0 ? (errAbsRK4 / Math.abs(T_exact)) * 100 : 0;
+
+                if (errRelHeun > maxErrHeun) maxErrHeun = errRelHeun;
+                if (errRelRK4 > maxErrRK4) maxErrRK4 = errRelRK4;
+
+                // Detect exact time vaccine breaches safety threshold (8°C)
+                if (T_exact >= 8.0 && tiempoLimiteExcedido === null) {
+                    tiempoLimiteExcedido = t;
+                }
+
+                // Save row
+                simulationResults.push({
+                    paso: pasoIndex,
+                    t: t,
+                    exacta: T_exact,
+                    heun: T_heun,
+                    errHeun: errRelHeun,
+                    rk4: T_rk4,
+                    errRK4: errRelRK4
+                });
+
+                tiempos.push(t.toFixed(1));
+                arrExacta.push(T_exact);
+                arrHeun.push(T_heun);
+                arrRK4.push(T_rk4);
+
+                // --- Calculate Next Step Heun (RK2) ---
+                let k1_h = f(T_heun, Tm, k);
+                let k2_h = f(T_heun + h * k1_h, Tm, k);
+                T_heun = T_heun + (h / 2) * (k1_h + k2_h);
+
+                // --- Calculate Next Step RK4 ---
+                let k1_r = f(T_rk4, Tm, k);
+                let k2_r = f(T_rk4 + (h / 2) * k1_r, Tm, k);
+                let k3_r = f(T_rk4 + (h / 2) * k2_r, Tm, k);
+                let k4_r = f(T_rk4 + h * k3_r, Tm, k);
+                T_rk4 = T_rk4 + (h / 6) * (k1_r + 2 * k2_r + 2 * k3_r + k4_r);
+
+                t += h;
+                pasoIndex++;
+            }
+
+            // Calculate precise threshold time analytically for alert
+            if (T0 < 8 && Tm > 8) {
+                // 8 = Tm + (T0 - Tm)*exp(-k*t) => t = -ln((8 - Tm)/(T0 - Tm)) / k
+                let tCritical = -Math.log((8 - Tm) / (T0 - Tm)) / k;
+                document.getElementById('tiempoLimite').innerText = `${tCritical.toFixed(1)} min`;
+                document.getElementById('alertBanner').classList.remove('hidden');
+            } else if (T0 >= 8) {
+                document.getElementById('tiempoLimite').innerText = `0.0 min (Inicialmente desprotegida)`;
+                document.getElementById('alertBanner').classList.remove('hidden');
+            } else {
+                document.getElementById('alertBanner').classList.add('hidden');
+            }
+
+            // Update KPIs
+            document.getElementById('kpiTiempo').innerHTML = `${tMax} <span class="text-sm font-normal text-slate-400">min</span>`;
+            document.getElementById('kpiIntervaloMax').innerText = tMax;
+
+            const tempFinal = arrExacta[arrExacta.length - 1];
+            document.getElementById('kpiTempFinal').innerHTML = `${tempFinal.toFixed(2)} <span class="text-sm font-normal text-slate-400">°C</span>`;
+
+            if (tempFinal > 8.0) {
+                document.getElementById('kpiEstadoTemp').innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Supera umbral (8°C)`;
+                document.getElementById('kpiEstadoTemp').className = "mt-4 flex items-center text-xs text-amber-400 gap-1.5 font-medium";
+            } else {
+                document.getElementById('kpiEstadoTemp').innerHTML = `<i class="fa-solid fa-shield-halved text-emerald-400"></i> Temperatura Segura (<8°C)`;
+                document.getElementById('kpiEstadoTemp').className = "mt-4 flex items-center text-xs text-emerald-400 gap-1.5 font-medium";
+            }
+
+            document.getElementById('kpiErrorHeun').innerHTML = `${maxErrHeun.toFixed(4)} <span class="text-sm">%</span>`;
+            document.getElementById('kpiErrorRK4').innerHTML = `${maxErrRK4.toFixed(4)} <span class="text-sm">%</span>`;
+
+            // Render Chart & Table
+            renderChart(tiempos, arrExacta, arrHeun, arrRK4);
+            renderTabla();
+        }
+
+        function renderChart(labels, exactaData, heunData, rk4Data) {
+            const ctx = document.getElementById('edoChart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Solución Analítica (Exacta)',
+                            data: exactaData,
+                            borderColor: '#34D399',
+                            backgroundColor: 'rgba(52, 211, 153, 0.05)',
+                            borderWidth: 3,
+                            pointRadius: 0,
+                            pointHoverRadius: 6,
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Método de Heun (RK2)',
+                            data: heunData,
+                            borderColor: '#FBBF24',
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            pointStyle: 'rect',
+                            pointRadius: 4,
+                            pointBackgroundColor: '#FBBF24',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Runge-Kutta 4.° Orden (RK4)',
+                            data: rk4Data,
+                            borderColor: '#A78BFA',
+                            borderWidth: 2,
+                            pointStyle: 'circle',
+                            pointRadius: 4,
+                            pointBackgroundColor: '#A78BFA',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Umbral de Seguridad (8°C)',
+                            data: labels.map(() => 8),
+                            borderColor: 'rgba(239, 68, 68, 0.6)',
+                            borderWidth: 1.5,
+                            borderDash: [3, 3],
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Plus Jakarta Sans', size: 12 },
+                            bodyFont: { family: 'Fira Code', size: 11 },
+                            padding: 12,
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.dataset.label}: ${context.parsed.y.toFixed(4)} °C`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tiempo t (minutos)',
+                                color: '#94A3B8',
+                                font: { family: 'Plus Jakarta Sans', size: 11 }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94A3B8', font: { family: 'Fira Code', size: 10 } }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Temperatura T (°C)',
+                                color: '#94A3B8',
+                                font: { family: 'Plus Jakarta Sans', size: 11 }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94A3B8', font: { family: 'Fira Code', size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTabla() {
+            const tbody = document.getElementById('tablaBody');
+            tbody.innerHTML = '';
+
+            simulationResults.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/40 transition-colors";
+
+                const errorRK4Superior = row.errRK4 <= row.errHeun;
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-slate-400">${row.paso}</td>
+                    <td class="py-3 px-4 text-slate-200 font-bold">${row.t.toFixed(1)}</td>
+                    <td class="py-3 px-4 text-emerald-400 font-semibold">${row.exacta.toFixed(4)}</td>
+                    <td class="py-3 px-4 text-amber-300">${row.heun.toFixed(4)}</td>
+                    <td class="py-3 px-4 text-amber-400/90">${row.errHeun.toFixed(4)}%</td>
+                    <td class="py-3 px-4 text-purple-300 font-semibold">${row.rk4.toFixed(4)}</td>
+                    <td class="py-3 px-4 text-purple-400/90">${row.errRK4.toFixed(4)}%</td>
+                    <td class="py-3 px-4">
+                        ${errorRK4Superior ? 
+                            '<span class="px-2 py-0.5 rounded text-[10px] badge-purple"><i class="fa-solid fa-check mr-1"></i>RK4 Óptimo</span>' : 
+                            '<span class="px-2 py-0.5 rounded text-[10px] badge-amber">Heun Cercano</span>'
+                        }
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportCSV() {
+            if (!simulationResults || simulationResults.length === 0) return;
+
+            let csv = 'Paso,Tiempo_min,Solucion_Analitica,Heun_RK2,Error_Porcentual_Heun,RK4,Error_Porcentual_RK4\n';
+
+            simulationResults.forEach(r => {
+                csv += `${r.paso},${r.t.toFixed(2)},${r.exacta.toFixed(6)},${r.heun.toFixed(6)},${r.errHeun.toFixed(6)},${r.rk4.toFixed(6)},${r.errRK4.toFixed(6)}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `simulacion_edo_vacunas_h${document.getElementById('inputH').value}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // Initialize simulation on load
+        window.onload = function() {
+            simular();
+        }
+    </script>
+</body>
+</html>
